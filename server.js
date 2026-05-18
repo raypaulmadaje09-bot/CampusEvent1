@@ -12,7 +12,7 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 /* =========================
-   PATH FIX (RENDER SAFE)
+   PATH FIX
 ========================= */
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -24,7 +24,7 @@ app.use(cors());
 app.use(express.json({ limit: "50mb" }));
 
 /* =========================
-   DATABASE CONNECTION (FINAL FIX)
+   DATABASE CONNECTION (AIVEN SAFE)
 ========================= */
 const pool = mysql.createPool({
   host: process.env.DB_HOST,
@@ -33,61 +33,37 @@ const pool = mysql.createPool({
   database: process.env.DB_NAME,
   port: process.env.DB_PORT || 3306,
 
-  ssl: {
-    rejectUnauthorized: false,
-  },
+  ssl: { rejectUnauthorized: false }, // required for Aiven
 
-  connectTimeout: 20000,
-
+  connectTimeout: 20000,  // prevent ETIMEDOUT
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
 });
 
 /* =========================
-   ROOT ROUTE
+   ROUTES
 ========================= */
-app.get("/", (req, res) => {
-  res.send("CampusPulse API Server Running");
-});
+app.get("/", (req, res) => res.send("CampusPulse API Server Running"));
 
-/* =========================
-   HEALTH CHECK
-========================= */
-app.get("/api/health", (req, res) => {
-  res.json({
-    status: "UP",
-    message: "CampusPulse Node Active",
-  });
-});
-
-/* =========================
-   DB TEST (IMPORTANT)
-========================= */
+// DB Test
 app.get("/api/db-test", async (req, res) => {
   try {
-    const [rows] = await pool.query("SELECT 1 + 1 AS result");
+    const conn = await pool.getConnection();
+    await conn.ping();
+    conn.release();
 
-    res.json({
-      status: "CONNECTED",
-      result: rows[0].result,
-    });
+    res.json({ status: "CONNECTED", message: "Database reachable" });
   } catch (err) {
-    res.status(500).json({
-      status: "FAILED",
-      error: err.message,
-    });
+    console.error("DB ERROR:", err.message);
+    res.status(500).json({ status: "FAILED", error: err.message });
   }
 });
 
-/* =========================
-   EVENTS API
-========================= */
+// Example Events API
 app.get("/api/events", async (req, res) => {
   try {
-    const [rows] = await pool.query(
-      "SELECT * FROM events ORDER BY date DESC"
-    );
+    const [rows] = await pool.query("SELECT * FROM events ORDER BY date DESC");
     res.json(rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -95,60 +71,12 @@ app.get("/api/events", async (req, res) => {
 });
 
 /* =========================
-   USERS API
-========================= */
-app.get("/api/users", async (req, res) => {
-  try {
-    const [rows] = await pool.query("SELECT * FROM users");
-    res.json(rows);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-/* =========================
-   FEEDBACK API
-========================= */
-app.get("/api/feedback", async (req, res) => {
-  try {
-    const [rows] = await pool.query(
-      "SELECT * FROM feedback ORDER BY timestamp DESC"
-    );
-    res.json(rows);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-/* =========================
-   AUDIT LOGS API
-========================= */
-app.get("/api/audit", async (req, res) => {
-  try {
-    const [rows] = await pool.query(
-      "SELECT * FROM audit_logs ORDER BY timestamp DESC"
-    );
-    res.json(rows);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-/* =========================
-   SERVE REACT BUILD
+   FRONTEND SERVE
 ========================= */
 const distPath = path.join(__dirname, "dist");
-
 if (fs.existsSync(distPath)) {
   app.use(express.static(distPath));
-
-  app.use((req, res) => {
-    res.sendFile(path.join(distPath, "index.html"));
-  });
-} else {
-  app.get("/", (req, res) => {
-    res.send("Frontend not built. Run npm run build");
-  });
+  app.use((req, res) => res.sendFile(path.join(distPath, "index.html")));
 }
 
 /* =========================
@@ -156,7 +84,7 @@ if (fs.existsSync(distPath)) {
 ========================= */
 app.listen(PORT, () => {
   console.log("=================================");
-  console.log("DATABASE + SERVER RUNNING");
-  console.log(`PORT: ${PORT}`);
+  console.log(`SERVER RUNNING ON PORT ${PORT}`);
+  console.log("DATABASE CONNECTED");
   console.log("=================================");
 });
