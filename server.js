@@ -12,7 +12,7 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 /* =========================
-   PATH FIX
+   PATH FIX (REQUIRED FOR RENDER)
 ========================= */
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -24,46 +24,64 @@ app.use(cors());
 app.use(express.json({ limit: "50mb" }));
 
 /* =========================
-   DATABASE CONNECTION (AIVEN SAFE)
+   DATABASE CONNECTION (ROBUST FIX)
 ========================= */
 const pool = mysql.createPool({
   host: process.env.DB_HOST,
   user: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME,
-  port: process.env.DB_PORT || 3306,
+  port: Number(process.env.DB_PORT || 3306),
 
-  ssl: { rejectUnauthorized: false }, // required for Aiven
+  ssl: {
+    rejectUnauthorized: false,
+  },
 
-  connectTimeout: 20000,  // prevent ETIMEDOUT
+  connectTimeout: 60000, // increased timeout (important for Render → Aiven)
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
 });
 
 /* =========================
-   ROUTES
+   TEST DB CONNECTION (IMPORTANT DEBUG ROUTE)
 ========================= */
-app.get("/", (req, res) => res.send("CampusPulse API Server Running"));
-
-// DB Test
 app.get("/api/db-test", async (req, res) => {
   try {
-    const conn = await pool.getConnection();
-    await conn.ping();
-    conn.release();
-
-    res.json({ status: "CONNECTED", message: "Database reachable" });
+    const [rows] = await pool.query("SELECT 1 AS result");
+    res.json({
+      status: "CONNECTED",
+      result: rows,
+    });
   } catch (err) {
     console.error("DB ERROR:", err.message);
-    res.status(500).json({ status: "FAILED", error: err.message });
+
+    res.status(500).json({
+      status: "FAILED",
+      error: err.message,
+    });
   }
 });
 
-// Example Events API
+/* =========================
+   BASIC ROUTES
+========================= */
+app.get("/", (req, res) => {
+  res.send("CampusPulse API Server Running");
+});
+
+app.get("/api/health", (req, res) => {
+  res.json({ status: "UP" });
+});
+
+/* =========================
+   EVENTS EXAMPLE
+========================= */
 app.get("/api/events", async (req, res) => {
   try {
-    const [rows] = await pool.query("SELECT * FROM events ORDER BY date DESC");
+    const [rows] = await pool.query(
+      "SELECT * FROM events ORDER BY date DESC"
+    );
     res.json(rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -71,20 +89,24 @@ app.get("/api/events", async (req, res) => {
 });
 
 /* =========================
-   FRONTEND SERVE
+   SERVE FRONTEND (SAFE)
 ========================= */
 const distPath = path.join(__dirname, "dist");
+
 if (fs.existsSync(distPath)) {
   app.use(express.static(distPath));
-  app.use((req, res) => res.sendFile(path.join(distPath, "index.html")));
+
+  app.get("*", (req, res) => {
+    res.sendFile(path.join(distPath, "index.html"));
+  });
 }
 
 /* =========================
-   START SERVER
+   START SERVER (DEBUG READY)
 ========================= */
 app.listen(PORT, () => {
   console.log("=================================");
-  console.log(`SERVER RUNNING ON PORT ${PORT}`);
-  console.log("DATABASE CONNECTED");
+  console.log("🚀 SERVER RUNNING");
+  console.log(`PORT: ${PORT}`);
   console.log("=================================");
 });
