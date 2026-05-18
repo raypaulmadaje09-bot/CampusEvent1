@@ -4,6 +4,7 @@ import mysql from "mysql2/promise";
 import dotenv from "dotenv";
 import path from "path";
 import { fileURLToPath } from "url";
+import fs from "fs";
 
 dotenv.config();
 
@@ -11,7 +12,7 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 /* =========================
-   FIX __dirname (ESM FIX)
+   PATH FIX (IMPORTANT)
 ========================= */
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -37,15 +38,13 @@ const pool = mysql.createPool({
 });
 
 /* =========================
-   ROOT ROUTE
+   API ROUTES
 ========================= */
+
 app.get("/", (req, res) => {
   res.send("CampusPulse API Server Running");
 });
 
-/* =========================
-   HEALTH CHECK
-========================= */
 app.get("/api/health", (req, res) => {
   res.json({
     status: "UP",
@@ -53,9 +52,6 @@ app.get("/api/health", (req, res) => {
   });
 });
 
-/* =========================
-   EVENTS
-========================= */
 app.get("/api/events", async (req, res) => {
   try {
     const [rows] = await pool.query(
@@ -67,9 +63,6 @@ app.get("/api/events", async (req, res) => {
   }
 });
 
-/* =========================
-   USERS
-========================= */
 app.get("/api/users", async (req, res) => {
   try {
     const [rows] = await pool.query("SELECT * FROM users");
@@ -79,9 +72,6 @@ app.get("/api/users", async (req, res) => {
   }
 });
 
-/* =========================
-   FEEDBACK
-========================= */
 app.get("/api/feedback", async (req, res) => {
   try {
     const [rows] = await pool.query(
@@ -93,9 +83,6 @@ app.get("/api/feedback", async (req, res) => {
   }
 });
 
-/* =========================
-   AUDIT LOGS
-========================= */
 app.get("/api/audit", async (req, res) => {
   try {
     const [rows] = await pool.query(
@@ -108,14 +95,18 @@ app.get("/api/audit", async (req, res) => {
 });
 
 /* =========================
-   SERVE VITE BUILD (FRONTEND)
+   SERVE FRONTEND (IMPORTANT FIX)
 ========================= */
-app.use(express.static(path.join(__dirname, "dist")));
 
-/* ✅ FIXED WILDCARD (NO "*") */
-app.use((req, res) => {
-  res.sendFile(path.join(__dirname, "dist", "index.html"));
-});
+const distPath = path.join(__dirname, "dist");
+
+if (fs.existsSync(distPath)) {
+  app.use(express.static(distPath));
+
+  app.get("*", (req, res) => {
+    res.sendFile(path.join(distPath, "index.html"));
+  });
+}
 
 /* =========================
    START SERVER
