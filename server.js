@@ -12,7 +12,7 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 /* =========================
-   PATH FIX (IMPORTANT)
+   PATH FIX (ES MODULES)
 ========================= */
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -24,7 +24,7 @@ app.use(cors());
 app.use(express.json({ limit: "50mb" }));
 
 /* =========================
-   DATABASE
+   DATABASE CONNECTION
 ========================= */
 const pool = mysql.createPool({
   host: process.env.DB_HOST,
@@ -38,13 +38,15 @@ const pool = mysql.createPool({
 });
 
 /* =========================
-   API ROUTES
+   ROOT ROUTE
 ========================= */
-
 app.get("/", (req, res) => {
   res.send("CampusPulse API Server Running");
 });
 
+/* =========================
+   HEALTH CHECK
+========================= */
 app.get("/api/health", (req, res) => {
   res.json({
     status: "UP",
@@ -52,6 +54,9 @@ app.get("/api/health", (req, res) => {
   });
 });
 
+/* =========================
+   EVENTS
+========================= */
 app.get("/api/events", async (req, res) => {
   try {
     const [rows] = await pool.query(
@@ -63,6 +68,9 @@ app.get("/api/events", async (req, res) => {
   }
 });
 
+/* =========================
+   USERS
+========================= */
 app.get("/api/users", async (req, res) => {
   try {
     const [rows] = await pool.query("SELECT * FROM users");
@@ -72,6 +80,9 @@ app.get("/api/users", async (req, res) => {
   }
 });
 
+/* =========================
+   FEEDBACK
+========================= */
 app.get("/api/feedback", async (req, res) => {
   try {
     const [rows] = await pool.query(
@@ -83,6 +94,9 @@ app.get("/api/feedback", async (req, res) => {
   }
 });
 
+/* =========================
+   AUDIT LOGS
+========================= */
 app.get("/api/audit", async (req, res) => {
   try {
     const [rows] = await pool.query(
@@ -95,15 +109,15 @@ app.get("/api/audit", async (req, res) => {
 });
 
 /* =========================
-   SERVE FRONTEND (IMPORTANT FIX)
+   SERVE FRONTEND (REACT BUILD)
 ========================= */
-
 const distPath = path.join(__dirname, "dist");
 
 if (fs.existsSync(distPath)) {
   app.use(express.static(distPath));
 
-  app.get("*", (req, res) => {
+  // ✅ IMPORTANT FIX (NO "*")
+  app.use((req, res) => {
     res.sendFile(path.join(distPath, "index.html"));
   });
 }
