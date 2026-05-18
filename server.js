@@ -11,7 +11,7 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 /* =========================
-   PATH FIX (REQUIRED FOR ESM)
+   PATH FIX (REQUIRED)
 ========================= */
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -37,13 +37,15 @@ const pool = mysql.createPool({
 });
 
 /* =========================
-   API ROUTES
+   ROOT ROUTE
 ========================= */
-
 app.get("/", (req, res) => {
   res.send("CampusPulse API Server Running");
 });
 
+/* =========================
+   API ROUTES
+========================= */
 app.get("/api/health", (req, res) => {
   res.json({
     status: "UP",
@@ -94,14 +96,15 @@ app.get("/api/audit", async (req, res) => {
 });
 
 /* =========================
-   SERVE REACT BUILD (RENDER FIX)
+   SERVE REACT BUILD (IMPORTANT FIX)
 ========================= */
 
 const distPath = path.join(__dirname, "dist");
 
 app.use(express.static(distPath));
 
-app.get("*", (req, res) => {
+/* ✅ IMPORTANT: NO "*" ROUTE (FIXES YOUR CRASH) */
+app.use((req, res) => {
   res.sendFile(path.join(distPath, "index.html"));
 });
 
